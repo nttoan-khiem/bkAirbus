@@ -17,16 +17,20 @@
 #include <avr/interrupt.h>
 
 //Define time remain state of system 
-#define TIME_REMAIN_STATE_1 3
-#define TIME_REMAIN_STATE_2 15
-#define TIME_REMAIN_STATE_3 5
-#define TIME_REMAIN_STATE_4 30
-#define TIME_REMAIN_STATE_5	15
+#define TIME_REMAIN_STATE_1 3  		//s
+#define TIME_REMAIN_STATE_2 15  	//s
+#define TIME_REMAIN_STATE_3 5 		//s
+#define TIME_REMAIN_STATE_4 30		//s
+#define TIME_REMAIN_STATE_5	15   //s
+#define TIME_DEBOUNCE 20   //ms
 //end define time remain state of system
 //Globle Variable 
 unsigned char g_operationCode = 0;
 unsigned char g_stateCodeLcd = 0;
-bool changeStateLcd = 1;
+bool g_changeStateLcd = 1;
+bool g_changeSec = 0;
+bool g_firstInit = 1;
+bool g_priorityState = 0;
 unsigned char g_remainTimeLcd = 0;
 unsigned char g_remainTimeLcdMili = 0;
 unsigned char g_vPort = 0;
@@ -64,6 +68,10 @@ void peintLcdL();
 void operationSystem();
 void operationLcd();
 void overString(char input1[17], char input2[17]);
+void stateTest();
+void testLight();
+unsigned char decemalConvertChuc(unsigned char input);
+unsigned char decemalConvertDonVi(unsigned char input);
 //End list function sorfware
 //Data of LCD display
 char stringLcdU[17];
@@ -86,6 +94,7 @@ ISR(TIMER0_OVF_vect){	//timer 0 use for timer of system with 10ms for interrupt
 	if(g_timeMili > 0 || g_timeSec > 0){
 		if(g_timeMili == 0 && g_timeSec > 0){
 			g_timeSec --;
+			g_changeSec = 1;
 			g_timeMili = 99;
 		}else if(g_timeMili > 0){
 			g_timeMili --;
@@ -127,43 +136,51 @@ int main(void){
 		scanKey();
 		operationSystem();
 		operationLcd();
+		if((PIND&0x01)==0){
+			testLight();
+			while((PIND&0x01)==0){
+				stateTest();
+			}
+			g_stateCodeLcd = 2;
+			g_changeStateLcd = 1;
+		}
 	}
 }
 void setBitPB(unsigned char bit, bool logic){
-   	if(logic){
-   	PORTB |= 0x01 << bit;
-   	}else{
-    	PORTB &= ~(0x01<<bit);
-   	}
+ 	if(logic){
+ 	PORTB |= 0x01 << bit;
+ 	}else{
+  	PORTB &= ~(0x01<<bit);
+ 	}
 }
 void setBitPD(unsigned char bit, bool logic){
-   	if(logic){
-   		PORTD |= 0x01 << bit;
-   	}else{
-     	PORTD &= ~(0x01<<bit);
-   	}
+ 	if(logic){
+ 		PORTD |= 0x01 << bit;
+ 	}else{
+   	PORTD &= ~(0x01<<bit);
+ 	}
 }
 void setVPort(unsigned char input){
 	g_vPort = input;
-   	char i = 0;
-   	setBitPB(2,0);
-   	setBitPB(0,0);
-   	for(i=7;i>=0;i--){
-    	setBitPB(0,0);
-     	if((input >> i)&0x01){
-      		setBitPB(1,1);
-     	}else{
-       		setBitPB(1,0);
-     	}
-    		setBitPB(0,1);
+ 	char i = 0;
+ 	setBitPB(2,0);
+ 	setBitPB(0,0);
+ 	for(i=7;i>=0;i--){
+  	setBitPB(0,0);
+   	if((input >> i)&0x01){
+    		setBitPB(1,1);
+   	}else{
+     		setBitPB(1,0);
    	}
-   	setBitPB(2,1);
+  		setBitPB(0,1);
+ 	}
+ 	setBitPB(2,1);
 }
 void setLCDPort(unsigned char input){
    	char i = 0;
    	setBitPB(3,0);
    	setBitPB(0,0);
-	for(i=7;i>=0;i--){
+		for(i=7;i>=0;i--){
 	   	setBitPB(0,0);
 	    if((input >> i)&0x01){
 	        setBitPB(1,1);
@@ -183,8 +200,8 @@ void writeDataLCD(unsigned char data){
   	setBitPD(6,0);
 }
 void writeCommandLCD(unsigned char command){
-	setBitPD(5,0);
-	setBitPD(6,0);
+		setBitPD(5,0);
+		setBitPD(6,0);
   	setLCDPort(command);
   	setBitPD(6,1);
   	_delay_ms(2);
@@ -225,17 +242,17 @@ unsigned char scanKeyInside(){
 	setVPort(g_vPort & 0xfe);
 	_delay_us(1);
 	if((PINC&(1<<3))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<3))==0);
 		soundPushButton();
 		return 0x31;
 	}else if((PINC&(1<<4))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<4))==0);
 		soundPushButton();
 		return 0x32;
 	}else if((PINC&(1<<5))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<5))==0);
 		soundPushButton();
 		return 0x33;
@@ -244,17 +261,17 @@ unsigned char scanKeyInside(){
 	setVPort(g_vPort & 0xfd);
 	_delay_us(1);
 	if((PINC&(1<<3))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<3))==0);
 		soundPushButton();
 		return 0x34;
 	}else if((PINC&(1<<4))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<4))==0);
 		soundPushButton();
 		return 0x35;
 	}else if((PINC&(1<<5))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<5))==0);
 		soundPushButton();
 		return 0x36;
@@ -263,17 +280,17 @@ unsigned char scanKeyInside(){
 	setVPort(g_vPort & 0xfb);
 	_delay_us(1);
 	if((PINC&(1<<3))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<3))==0);
 		soundPushButton();
 		return 0x37;
 	}else if((PINC&(1<<4))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<4))==0);
 		soundPushButton();
 		return 0x38;
 	}else if((PINC&(1<<5))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<5))==0);
 		soundPushButton();
 		return 0x39;
@@ -282,17 +299,17 @@ unsigned char scanKeyInside(){
 	setVPort(g_vPort & 0xf7);
 	_delay_us(1);
 	if((PINC&(1<<3))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<3))==0);
 		soundPushButton();
 		return 0x2a;
 	}else if((PINC&(1<<4))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<4))==0);
 		soundPushButton();
 		return 0x30;
 	}else if((PINC&(1<<5))==0){
-		_delay_ms(1);
+		_delay_ms(TIME_DEBOUNCE);
 		while((PINC&(1<<5))==0);
 		soundPushButton();
 		return 0x23;
@@ -305,19 +322,19 @@ void scanKey(){
 	_delay_us(1);
 	if(g_operationCode == 0){
 		if((PINC&(1<<0))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<0))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 1;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<1))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<1))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 2;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<2))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<2))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 3;
@@ -332,19 +349,19 @@ void scanKey(){
 	_delay_us(1);
 	if(g_operationCode == 0){
 		if((PINC&(1<<0))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<0))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 4;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<1))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<1))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 5;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<2))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<2))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 6;
@@ -359,19 +376,19 @@ void scanKey(){
 	_delay_us(1);
 	if(g_operationCode == 0){
 		if((PINC&(1<<0))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<0))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 7;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<1))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<1))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 8;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<2))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<2))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 9;
@@ -386,32 +403,46 @@ void scanKey(){
 	_delay_us(1);
 	if(g_operationCode == 0){
 		if((PINC&(1<<0))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<0))==0);
 			soundPushButton();
 			g_poiterOutside = 0;
 		}else if((PINC&(1<<1))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<1))==0);
 			soundPushButton();
 			g_codeEnter[g_poiterOutside] = 0;
 			g_poiterOutside ++;
 		}else if((PINC&(1<<2))==0){
-			_delay_ms(1);
+			_delay_ms(TIME_DEBOUNCE);
 			while((PINC&(1<<2))==0);
-			writeDataLCD('s');
 			if(g_stateCodeLcd != 4){
 				if(g_poiterOutside == 4){
 					g_poiterOutside = 0;
-					writeDataLCD('4');
 					if(checkCode()){
 						g_operationCode = 4;
 						g_timeSec = TIME_REMAIN_STATE_4;
+						g_priorityState = 1;
+						overString(stringLcdU," EMERGENCY:    s"); //13 and 14
+						stringLcdU[13] = 0x30 + decemalConvertChuc(TIME_REMAIN_STATE_4);
+						stringLcdU[14] = 0x30 + decemalConvertDonVi(TIME_REMAIN_STATE_4);
+						overString(stringLcdL,"SwitchToLock now");
+						g_remainTimeLcd = 5;
+						writeCommandLCD(0x0c);
+						printLcdU();
+						printLcdL();
 					}
 				}else if(g_operationCode != 2){
 					g_poiterOutside = 0;
 					g_operationCode = 1;
 					g_timeSec = TIME_REMAIN_STATE_1;
+					g_priorityState = 1;
+					overString(stringLcdU," NORMAL REQUEST ");
+					overString(stringLcdL," Lock or unlock ");
+					printLcdU();
+					printLcdL();
+					writeCommandLCD(0x0c);
+					g_remainTimeLcd = TIME_REMAIN_STATE_1;
 				}
 			}
 		}
@@ -492,12 +523,19 @@ void operationSystem(){
 			}
 			break;
 		case 4:
+			g_remainTimeLcd = 5;
 			if((g_timeSec==0)&&(g_timeMili==0)){
 				buzzer(1);
 				_delay_ms(1000);
 				buzzer(0);
 				g_operationCode = 5;
 				g_timeSec = TIME_REMAIN_STATE_5;
+				g_remainTimeLcd = TIME_REMAIN_STATE_5;
+				overString(stringLcdU, "   DOOR FAIL !  ");
+				overString(stringLcdL, "Security failed ");
+				printLcdU();
+				printLcdL();
+				writeCommandLCD(0x0c);
 			}else{
 				if((g_timeMili/10)%2){
 					buzzer(1);
@@ -507,6 +545,18 @@ void operationSystem(){
 					buzzer(0);
 					ledOpen(0);
 					ledAllow(0);
+				}
+				if(g_changeSec){
+					writeCommandLCD(0x80 + 13);
+					writeDataLCD(0x30 + decemalConvertChuc(g_timeSec));
+					writeDataLCD(0x30 + decemalConvertDonVi(g_timeSec));
+				}
+				if(g_priorityState){
+					if(g_timeMili < 50){
+						writeCommandLCD(0x08);
+					}else{
+						writeCommandLCD(0x0c);
+					}
 				}
 				ledFail(0);
 				ledDenied(0);
@@ -518,6 +568,14 @@ void operationSystem(){
 			if((g_timeSec==0)&&(g_timeMili==0)){
 				g_operationCode = 0;
 			}else{
+				g_remainTimeLcd = 3;
+				if(g_priorityState){
+					if(g_timeMili < 50){
+						writeCommandLCD(0x0c);
+					}else{
+						writeCommandLCD(0x08);
+					}
+				}
 				buzzer(0);
 				ledOpen(1);
 				ledFail(1);
@@ -552,95 +610,105 @@ void operationSystem(){
 }
 void operationLcd(){
 	unsigned char key = scanKeyInside();
-	if(changeStateLcd){
+	if(g_changeStateLcd){
 		key = 0xfe;
-		changeStateLcd = 0;
+		g_changeStateLcd = 0;
 	}
 	if(key != 0xff){
-		g_remainTimeLcd = 10;
-		writeCommandLCD(0x0c);
-		if(g_stateCodeLcd == 0){
-			overString(stringLcdU, " Initialization ");
-			overString(stringLcdL, "1.Init     2.Off");
-			printLcdU();
-			printLcdL();
-			if(key == 0x31){
-				g_stateCodeLcd = 1;
-				changeStateLcd = 1;
-				key = 0xff;
-				overString(stringLcdL, "Enter code:     ");
-			}else if(key == 0x32){
-				writeCommandLCD(0x08);
-			}
-		}else if(g_stateCodeLcd == 1){
-			writeCommandLCD(0x0f);
-			unsigned char i = 0;
-			overString(stringLcdU, "Active code:    ");
-			if(key >= 0x30 && key <= 0x39){
-				if(g_poiterInside != 4){
-					stringLcdL[11+g_poiterInside] = key;
-				}
-				g_codeTemp[g_poiterInside] = key - 0x30;
-				g_poiterInside ++;
-				if(g_poiterInside == 5){
-					g_poiterInside = 0;
-				}
-			}else if(key == 0x23){
-				if(g_poiterInside == 4){
+		g_priorityState = 0;
+	}
+	if(!g_priorityState){
+		if(key != 0xff){
+			g_remainTimeLcd = 10;
+			writeCommandLCD(0x0c);
+			if(g_stateCodeLcd == 0){
+				overString(stringLcdU, " Initialization ");
+				overString(stringLcdL, "1.Init     2.Off");
+				printLcdU();
+				printLcdL();
+				if(key == 0x31){
+					g_stateCodeLcd = 1;
+					g_changeStateLcd = 1;
+					key = 0xff;
 					overString(stringLcdL, "Enter code:     ");
-					for(i=0; i<4; i++){
-						g_codeSet[i] = g_codeTemp[i];
+				}else if(key == 0x32){
+					writeCommandLCD(0x08);
+				}
+			}else if(g_stateCodeLcd == 1){
+				g_firstInit = 0;
+				writeCommandLCD(0x0f);
+				unsigned char i = 0;
+				overString(stringLcdU, "Active code:    ");
+				if(key >= 0x30 && key <= 0x39){
+					if(g_poiterInside != 4){
+						stringLcdL[11+g_poiterInside] = key;
+					}
+					g_codeTemp[g_poiterInside] = key - 0x30;
+					g_poiterInside ++;
+					if(g_poiterInside == 5){
+						g_poiterInside = 0;
+					}
+				}else if(key == 0x23){
+					if(g_poiterInside == 4){
+						overString(stringLcdL, "Enter code:     ");
+						for(i=0; i<4; i++){
+							g_codeSet[i] = g_codeTemp[i];
+						}
 					}
 				}
-			}
-			for(i=0; i<4; i++){
-				stringLcdU[i+12] = g_codeSet[i]+0x30;
-			}
-			printLcdU();
-			printLcdL();
-			if(key == 0x2a){
-				g_stateCodeLcd = 2;
-				changeStateLcd = 1;
-				key = 0xff;
-			}
-		}else if(g_stateCodeLcd == 2){
-			overString(stringLcdU, "      Menu      ");
-			overString(stringLcdL, "1.Edit  2.Strict");
-			printLcdU();
-			printLcdL();
-			if(key == 0x31){
-				g_stateCodeLcd = 1;
-				changeStateLcd = 1;
-				key = 0xff;
-				overString(stringLcdL, "Enter code:     ");
-			}else if(key == 0x32){
-				g_stateCodeLcd = 3;
-				changeStateLcd = 1;
-				key = 0xff;
-			}
-		}else if(g_stateCodeLcd == 3){
-			overString(stringLcdU, "  Strict mode   ");
-			overString(stringLcdL, "Confirm press # ");
-			printLcdU();
-			printLcdL();
-			if(key == 0x23){
-				g_stateCodeLcd = 4;
-				changeStateLcd = 1;
-				key = 0xff;
-			}else if(key == 0x2a){
-				g_stateCodeLcd = 2;
-				changeStateLcd = 1;
-				key = 0xff;
-			}
-		}else if(g_stateCodeLcd == 4){
-			overString(stringLcdU, "  STRICT  MODE  ");
-			overString(stringLcdL, "----------------");
-			printLcdU();
-			printLcdL();
-			if(key == 0x2a){
-				g_stateCodeLcd = 2;
-				changeStateLcd = 1;
-				key = 0xff;
+				for(i=0; i<4; i++){
+					stringLcdU[i+12] = g_codeSet[i]+0x30;
+				}
+				printLcdU();
+				printLcdL();
+				if(key == 0x2a){
+					g_stateCodeLcd = 2;
+					g_changeStateLcd = 1;
+					key = 0xff;
+				}
+			}else if(g_stateCodeLcd == 2){
+				if(g_firstInit){
+					g_stateCodeLcd = 0;
+					g_changeStateLcd = 1;
+				}
+				overString(stringLcdU, "      Menu      ");
+				overString(stringLcdL, "1.Edit  2.Strict");
+				printLcdU();
+				printLcdL();
+				if(key == 0x31){
+					g_stateCodeLcd = 1;
+					g_changeStateLcd = 1;
+					key = 0xff;
+					overString(stringLcdL, "Enter code:     ");
+				}else if(key == 0x32){
+					g_stateCodeLcd = 3;
+					g_changeStateLcd = 1;
+					key = 0xff;
+				}
+			}else if(g_stateCodeLcd == 3){
+				overString(stringLcdU, "  Strict mode   ");
+				overString(stringLcdL, "Confirm press # ");
+				printLcdU();
+				printLcdL();
+				if(key == 0x23){
+					g_stateCodeLcd = 4;
+					g_changeStateLcd = 1;
+					key = 0xff;
+				}else if(key == 0x2a){
+					g_stateCodeLcd = 2;
+					g_changeStateLcd = 1;
+					key = 0xff;
+				}
+			}else if(g_stateCodeLcd == 4){
+				overString(stringLcdU, "  STRICT  MODE  ");
+				overString(stringLcdL, "----------------");
+				printLcdU();
+				printLcdL();
+				if(key == 0x2a){
+					g_stateCodeLcd = 2;
+					g_changeStateLcd = 1;
+					key = 0xff;
+				}
 			}
 		}
 	}
@@ -699,6 +767,7 @@ void initialPinConfig(){
 	DDRC &= 0xc0; //bit 0 -> 5 is input
 	PORTC = 0xFF; //all 1 to pull up
 	DDRD |= 0xe0; //bit 7 -> 5 is output else is input 
+	PORTD |= 0x01;
 }
 void initialLcd(){
 	g_remainTimeLcd = 20;
@@ -749,4 +818,36 @@ void overString(char input1[17], char input2[17]){
 	for(i=0; i<17; i++){
 		input1[i] = input2[i];
 	}
+}
+void stateTest(){
+	buzzer(1);
+	_delay_ms(25);
+	buzzer(0);
+	_delay_ms(175);
+	g_remainTimeLcd = 2;
+}
+void testLight(){
+	_delay_ms(200);
+	writeCommandLCD(0x0c);
+	g_remainTimeLcd = 10;
+	overString(stringLcdU," TEST OPERATION ");
+	overString(stringLcdL," only for test  ");
+	printLcdU();
+	printLcdL();
+	ledOpen(1);
+	ledFail(1);
+	ledAllow(1);
+	ledDenied(1);
+	ledLock(1);
+	_delay_ms(500);
+	ledUnlock(1);
+	_delay_ms(500);
+	ledUnlock(0);
+	_delay_ms(1000);
+}
+unsigned char decemalConvertChuc(unsigned char input){
+	return input/10;
+}
+unsigned char decemalConvertDonVi(unsigned char input){
+	return input%10;
 }
