@@ -6,25 +6,32 @@
 
 /*****************************
    version: beta 0.1
-   F-CPU: 8MHz
+   F-CPU: 16MHz
    microcontroller: ATmega328p
  *****************************/
 
-#define F_CPU 8000000
+#define F_CPU 16000000
 
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
 //Define time remain state of system 
-#define TIME_REMAIN_STATE_1 3
-#define TIME_REMAIN_STATE_2 15
-#define TIME_REMAIN_STATE_3 5
-#define TIME_REMAIN_STATE_4 30
-#define TIME_REMAIN_STATE_5  15
-#define TIME_DEBOUNCE 20
+#define TIME_REMAIN_STATE_1 3      //s
+#define TIME_REMAIN_STATE_2 15    //s
+#define TIME_REMAIN_STATE_3 5     //s
+#define TIME_REMAIN_STATE_4 30    //s
+#define TIME_REMAIN_STATE_5 15   //s
+#define TIME_DEBOUNCE 20   //ms
 //end define time remain state of system
 //Globle Variable 
+char stateMenuLcd = 0;
+unsigned char g_checkUnlock = 0;
+bool testting = 0;
+unsigned char g_checkLock = 0;
+unsigned char g_remainTestKeyPad = 0;
+unsigned char g_errorSystem = 0;
+unsigned char g_errorCode[4] = {0,0,0,0};
 unsigned char g_operationCode = 0;
 unsigned char g_stateCodeLcd = 0;
 bool g_changeStateLcd = 1;
@@ -62,6 +69,8 @@ void soundPushButton();
 //List function sorfware
 void scanKey();
 unsigned char scanKeyInside();
+unsigned char scanKeyOutside();
+bool checkError();
 bool checkCode();
 void printLcdU();
 void peintLcdL();
@@ -70,8 +79,10 @@ void operationLcd();
 void overString(char input1[17], char input2[17]);
 void stateTest();
 void testLight();
+unsigned char testDisplay();
 unsigned char decemalConvertChuc(unsigned char input);
 unsigned char decemalConvertDonVi(unsigned char input);
+unsigned char testKeyPad();
 //End list function sorfware
 //Data of LCD display
 char stringLcdU[17];
@@ -79,18 +90,30 @@ char stringLcdL[17];
 //end define
 //Interupt function lock or unlock door
 ISR(INT0_vect){   //Unlock function / allow to access cockpit
-  g_operationCode = 3;  //unlock mode
-  g_timeSec = TIME_REMAIN_STATE_3;
+  if(testting){
+    g_checkUnlock = 1;
+  }else{
+    g_operationCode = 3;  //unlock mode
+    g_timeSec = TIME_REMAIN_STATE_3;
+    g_stateCodeLcd = 2;
+    g_changeStateLcd = 1;
+  }
 }
 
 ISR(INT1_vect){ //lock function / denied to access cockpit
-  g_operationCode = 2;  //lock mode
-  g_timeSec = TIME_REMAIN_STATE_2;
+  if(testting){
+    g_checkLock = 1;
+  }else{
+    g_operationCode = 2;  //lock mode
+    g_timeSec = TIME_REMAIN_STATE_2;
+    g_stateCodeLcd = 2;
+    g_changeStateLcd = 1;
+  }
 }
 //End define function interupt
 //Interupt function timer of system
 ISR(TIMER0_OVF_vect){ //timer 0 use for timer of system with 10ms for interrupt
-  TCNT0=0xB2;
+  TCNT0=0x63;
   if(g_timeMili > 0 || g_timeSec > 0){
     if(g_timeMili == 0 && g_timeSec > 0){
       g_timeSec --;
@@ -108,7 +131,9 @@ ISR(TIMER0_OVF_vect){ //timer 0 use for timer of system with 10ms for interrupt
       g_remainTimeLcdMili --;
     }
     if(g_remainTimeLcd == 0 && g_remainTimeLcdMili == 0){
-      writeCommandLCD(0x08);
+      if(testting == 0){
+        writeCommandLCD(0x08);
+      }
     }
   }
 }
@@ -128,6 +153,7 @@ void initializationSystem();
 * 4: emergency request access mode
 * 5: door fail/ open emergency success
 * 6: test mode
+* 7: initialation not complete
 ***************************/ 
 
 int main(void){
@@ -136,9 +162,9 @@ int main(void){
     scanKey();
     operationSystem();
     operationLcd();
-    if((PIND&0x01)==0){
+    if((PIND&(1<<4))==0){
       testLight();
-      while((PIND&0x01)==0){
+      while((PIND&(1<<4))==0){
         stateTest();
       }
       g_stateCodeLcd = 2;
@@ -217,7 +243,7 @@ void initialTimer0(){
   // Timer Period: 9.984 ms
   TCCR0A=(0<<COM0A1) | (0<<COM0A0) | (0<<COM0B1) | (0<<COM0B0) | (0<<WGM01) | (0<<WGM00);
   TCCR0B=(0<<WGM02) | (1<<CS02) | (0<<CS01) | (1<<CS00);    //source clock / 1024
-  TCNT0=0xB2;
+  TCNT0=0x63;
   OCR0A=0x00;
   OCR0B=0x00;
   // Timer/Counter 0 Interrupt(s) initialization
@@ -672,7 +698,20 @@ void operationLcd(){
           g_changeStateLcd = 1;
         }
         overString(stringLcdU, "      Menu      ");
-        overString(stringLcdL, "1.Edit  2.Strict");
+        if(checkError()){
+          stringLcdU[13] = 0x3c;
+          stringLcdU[14] = 0x21;
+          stringLcdU[15] = 0x3e;
+        }
+        if(stateMenuLcd == 0){
+          overString(stringLcdL, "1.Edit  2.Strict");
+        }else if(stateMenuLcd == 1){
+          overString(stringLcdL, "  3.Test keypad ");
+        }else if(stateMenuLcd == 2){
+          overString(stringLcdL, " 4.Test display ");
+        }else if(stateMenuLcd == 3){
+          overString(stringLcdL, " 5. Information ");
+        }
         printLcdU();
         printLcdL();
         if(key == 0x31){
@@ -682,6 +721,31 @@ void operationLcd(){
           overString(stringLcdL, "Enter code:     ");
         }else if(key == 0x32){
           g_stateCodeLcd = 3;
+          g_changeStateLcd = 1;
+          key = 0xff;
+        }else if(key == 0x2a){
+          stateMenuLcd --;
+          if(stateMenuLcd < 0){
+            stateMenuLcd = 3;
+          }
+          g_changeStateLcd = 1;
+        }else if(key == 0x23){
+          stateMenuLcd ++;
+          if(stateMenuLcd > 3){
+            stateMenuLcd = 0;
+          }
+          g_changeStateLcd = 1;
+        }else if(key == 0x33){
+          g_errorCode[0] = 0;
+          g_errorCode[1] = 0;
+          g_errorCode[2] = 0;
+          g_errorSystem += testKeyPad();
+        }else if(key == 0x34){
+          g_errorCode[3] = 0;
+          g_errorSystem += testDisplay();
+        }else if(key == 0x35){
+          g_stateCodeLcd = 5;
+          stateMenuLcd = 0;
           g_changeStateLcd = 1;
           key = 0xff;
         }
@@ -708,6 +772,93 @@ void operationLcd(){
           g_stateCodeLcd = 2;
           g_changeStateLcd = 1;
           key = 0xff;
+        }
+      }else if(g_stateCodeLcd == 5){
+        if(key != 0x23 && key != 0x2a){
+          if(stateMenuLcd == 0){
+            if(checkError()){
+              overString(stringLcdU, "System in ERROR ");
+              overString(stringLcdL, "Press # to view ");
+              printLcdU();
+              printLcdL();
+              buzzer(1);
+              _delay_ms(500);
+              buzzer(0);
+            }else{
+              overString(stringLcdU, "System in NORMAL");
+              overString(stringLcdL, "Press # to view ");
+              printLcdU();
+              printLcdL();
+            }
+          }else if(stateMenuLcd == 1){
+            overString(stringLcdU, "1. keypad inside");
+            if(g_errorCode[0] == 0){
+              overString(stringLcdL, "Erything is okay");
+              printLcdU();
+              printLcdL();
+            }else{
+              overString(stringLcdL, " Run with ERROR ");
+              printLcdU();
+              printLcdL();
+              buzzer(1);
+              _delay_ms(500);
+              buzzer(0);
+            }
+          }else if(stateMenuLcd == 2){
+            overString(stringLcdU, "2.keypad outside");
+            if(g_errorCode[1] == 0){
+              overString(stringLcdL, "Erything is okay");
+              printLcdU();
+              printLcdL();
+            }else{
+              overString(stringLcdL, " Run with ERROR ");
+              printLcdU();
+              printLcdL();
+              buzzer(1);
+              _delay_ms(500);
+              buzzer(0);
+            }
+          }else if(stateMenuLcd == 3){
+            overString(stringLcdU, "3.Switch control");
+            if(g_errorCode[2] == 0){
+              overString(stringLcdL, "Erything is okay");
+              printLcdU();
+              printLcdL();
+            }else{
+              overString(stringLcdL, " Run with ERROR ");
+              printLcdU();
+              printLcdL();
+              buzzer(1);
+              _delay_ms(500);
+              buzzer(0);
+            }
+          }else if(stateMenuLcd == 4){
+            overString(stringLcdU, "4.System display");
+            if(g_errorCode[3] == 0){
+              overString(stringLcdL, "Erything is okay");
+              printLcdU();
+              printLcdL();
+            }else{
+              overString(stringLcdL, " Run with ERROR ");
+              printLcdU();
+              printLcdL();
+              buzzer(1);
+              _delay_ms(500);
+              buzzer(0);
+            }
+          }
+        }else{
+          if(key == 0x23){
+            g_changeStateLcd = 1;
+            stateMenuLcd ++;
+            if(stateMenuLcd > 4){
+              stateMenuLcd = 0;
+            }
+          }else if(key == 0x2a){
+            g_changeStateLcd = 1;
+            stateMenuLcd = 0;
+            g_stateCodeLcd = 2;
+          }
         }
       }
     }
@@ -767,7 +918,7 @@ void initialPinConfig(){
   DDRC &= 0xc0; //bit 0 -> 5 is input
   PORTC = 0xFF; //all 1 to pull up
   DDRD |= 0xe0; //bit 7 -> 5 is output else is input 
-  PORTD |= 0x01;
+  PORTD |= 0x11;
 }
 void initialLcd(){
   g_remainTimeLcd = 20;
@@ -786,18 +937,23 @@ void initializationSystem(){
   initialLcd();
   overString(stringLcdL, "PinConfigSuccess");
   printLcdL();
-  _delay_ms(500);
+  _delay_ms(200);
   initialExternalInteruprt();
   overString(stringLcdL, "InterruptSuccess");
   printLcdL();
-  _delay_ms(500);
+  _delay_ms(300);
   initialTimer0();
   overString(stringLcdL, "InitTimerSuccess");
+  printLcdL();
+  _delay_ms(100);
+  overString(stringLcdU, "Vision: Beta 0.5");
+  overString(stringLcdL, " Please press # ");
+  printLcdU();
   printLcdL();
   buzzer(1);
   _delay_ms(50);
   buzzer(0);
-  _delay_ms(200);
+  while(scanKeyInside() != 0x23);
 }
 void printLcdU(){
   unsigned char i = 0;
@@ -850,4 +1006,273 @@ unsigned char decemalConvertChuc(unsigned char input){
 }
 unsigned char decemalConvertDonVi(unsigned char input){
   return input%10;
+}
+unsigned char testKeyPad(){
+  testting = 1;
+  _delay_ms(500);
+  overString(stringLcdU, "TEST KEYP INSIDE");
+  unsigned char i = 0;
+  unsigned char parameter = 0;
+  unsigned char result = 0;
+  for(i = 0; i < 12; i++){
+    g_timeSec = 4;
+    overString(stringLcdL, "Press  .... sec ");
+    if(i == 10){
+      parameter = 0x2a;
+      stringLcdL[6] = 0x2a;
+    }else if(i == 11){
+      stringLcdL[6] = 0x23;
+      parameter = 0x23;
+    }else{
+      stringLcdL[6] = i + 0x30;
+      parameter = i + 0x30;
+    }
+    printLcdU();
+    printLcdL();
+    while(scanKeyInside() != parameter){
+      if(g_changeSec == 1){
+        g_changeSec == 0;
+        writeCommandLCD(0xcb);
+        writeDataLCD(0x30 + g_timeSec);
+      }
+      if(g_timeSec == 0 && g_timeMili == 0){
+        result ++;
+        g_errorCode[0] = 1;
+        soundPushButton();
+        soundPushButton();
+        break;
+      }
+    }
+  }
+  overString(stringLcdU, "TEST KEY OUTSIDE");
+  for(i = 0; i < 12; i++){
+    g_timeSec = 4;
+    overString(stringLcdL, "Press  .... sec ");
+    if(i == 10){
+      parameter = 0x2a;
+      stringLcdL[6] = 0x2a;
+    }else if(i == 11){
+      stringLcdL[6] = 0x23;
+      parameter = 0x23;
+    }else{
+      stringLcdL[6] = i + 0x30;
+      parameter = i + 0x30;
+    }
+    printLcdU();
+    printLcdL();
+    while(scanKeyOutside() != parameter){
+      if(g_changeSec == 1){
+        g_changeSec == 0;
+        writeCommandLCD(0xcb);
+        writeDataLCD(0x30 + g_timeSec);
+      }
+      if(g_timeSec == 0 && g_timeMili == 0){
+        result ++;
+        g_errorCode[1] = 1;
+        soundPushButton();
+        soundPushButton();
+        break;
+      }
+    }
+  }
+  g_checkLock = 0;
+  g_checkUnlock = 0;
+  overString(stringLcdU, "  TEST SWITCH   ");
+  overString(stringLcdL, "Unlock test  sec");
+  printLcdU();
+  printLcdL();
+  g_timeSec = 5;
+  while(g_checkUnlock == 0){
+    if(g_changeSec == 1){
+      g_changeSec = 0;
+      writeCommandLCD(0xcb);
+      writeDataLCD(0x30 + g_timeSec);
+    }
+    if(g_timeSec == 0 && g_timeMili == 0){
+      result ++;
+      g_errorCode[2] = 1;
+      soundPushButton();
+      soundPushButton();
+      break;
+    }
+  }
+  overString(stringLcdU, "  TEST SWITCH   ");
+  overString(stringLcdL, "Lock test    sec");
+  printLcdU();
+  printLcdL();
+  g_timeSec = 5;
+  while(g_checkLock == 0){
+    if(g_changeSec == 1){
+      g_changeSec = 0;
+      writeCommandLCD(0xcb);
+      writeDataLCD(0x30 + g_timeSec);
+    }
+    if(g_timeSec == 0 && g_timeMili == 0){
+      result ++;
+      g_errorCode[2] = 1;
+      soundPushButton();
+      soundPushButton();
+      break;
+    }
+  }
+  testting = 0;
+  g_changeStateLcd = 1;
+  return result;
+}
+
+unsigned char scanKeyOutside(){
+  g_vPort |= 0x0f;
+  setVPort(g_vPort & 0xfe);
+  _delay_us(1);
+  if((PINC&(1<<0))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<0))==0);
+    soundPushButton();
+    return 0x31;
+  }else if((PINC&(1<<1))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<1))==0);
+    soundPushButton();
+    return 0x32;
+  }else if((PINC&(1<<2))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<2))==0);
+    soundPushButton();
+    return 0x33;
+  }
+  g_vPort |= 0x0f;
+  setVPort(g_vPort & 0xfd);
+  _delay_us(1);
+  if((PINC&(1<<0))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<0))==0);
+    soundPushButton();
+    return 0x34;
+  }else if((PINC&(1<<1))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<1))==0);
+    soundPushButton();
+    return 0x35;
+  }else if((PINC&(1<<2))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<2))==0);
+    soundPushButton();
+    return 0x36;
+  }
+  g_vPort |= 0x0f;
+  setVPort(g_vPort & 0xfb);
+  _delay_us(1);
+  if((PINC&(1<<0))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<0))==0);
+    soundPushButton();
+    return 0x37;
+  }else if((PINC&(1<<1))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<1))==0);
+    soundPushButton();
+    return 0x38;
+  }else if((PINC&(1<<2))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<2))==0);
+    soundPushButton();
+    return 0x39;
+  }
+  g_vPort |= 0x0f;
+  setVPort(g_vPort & 0xf7);
+  _delay_us(1);
+  if((PINC&(1<<0))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<0))==0);
+    soundPushButton();
+    return 0x2a;
+  }else if((PINC&(1<<1))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<1))==0);
+    soundPushButton();
+    return 0x30;
+  }else if((PINC&(1<<2))==0){
+    _delay_ms(TIME_DEBOUNCE);
+    while((PINC&(1<<2))==0);
+    soundPushButton();
+    return 0x23;
+  }
+  return 0xff;
+}
+unsigned char testDisplay(){
+  testting = 1;
+  unsigned char result = 0;
+  overString(stringLcdU, "  TEST DISPLAY  ");
+  overString(stringLcdL, "Start testing   ");
+  printLcdU();
+  printLcdL();
+  _delay_ms(100);
+  writeCommandLCD(0xcd);
+  writeDataLCD('.');
+  _delay_ms(20);
+  writeDataLCD('.');
+  _delay_ms(50);
+  writeDataLCD('.');
+  _delay_ms(300);
+  overString(stringLcdU,"                ");
+  overString(stringLcdL,"                ");
+  printLcdU();
+  printLcdL();
+  unsigned char i = 0;
+  writeCommandLCD(0x80);
+  for(i = 0; i < 16; i++){
+    writeDataLCD(0xff);
+    _delay_ms(50);
+  }
+  writeCommandLCD(0xc0);
+  for(i = 0; i < 16; i++){
+    writeDataLCD(0xff);
+    _delay_ms(50);
+  }
+  _delay_ms(500);
+  overString(stringLcdU, "Press * if error");
+  overString(stringLcdL, "Else press #    ");
+  soundPushButton();
+  printLcdL();
+  printLcdU();
+  g_timeSec = 5;
+  bool run = 1;
+  unsigned char keyTemp = 0xff;
+  do{
+    keyTemp = scanKeyInside();
+    if(g_timeSec == 0 && g_timeMili == 0){
+      result ++;
+      g_errorCode[0] = 1;
+      g_errorCode[3] = 1;
+      soundPushButton();
+      soundPushButton();
+      g_changeStateLcd = 1;
+      run = 0; 
+    }
+    if(keyTemp == 0x2a){
+      result ++;
+      g_errorCode[3] = 1;
+      g_changeStateLcd = 1;
+      run = 0;
+    }
+    if(keyTemp == 0x23){
+      g_errorCode[3] = 0;
+      g_changeStateLcd = 1;
+      run = 0;
+    }
+  }while(run);
+  testting = 0;
+  return result;
+}
+bool checkError(){
+  unsigned char i = 0;
+  unsigned error = 0;
+  for(i = 0; i < 4; i++){
+    error += g_errorCode[i];
+  }
+  if(error){
+    return 1;
+  }else{
+    return 0;
+  }
 }
