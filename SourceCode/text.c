@@ -5,7 +5,7 @@
 */
 
 /*****************************
-   version: beta 0.1
+   version: beta 0.5
    F-CPU: 16MHz
    microcontroller: ATmega328p
  *****************************/
