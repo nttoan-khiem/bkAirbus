@@ -1,0 +1,124 @@
+(ExpressProject "Layout"
+  (ProjectVersion "19981106")
+  (ProjectType "PCB")
+  (Folder "Design Resources"
+    (Folder "Library"
+      (File ".\library1.olb"
+        (Type "Schematic Library")))
+    (NoModify)
+    (File ".\layout.dsn"
+      (Type "Schematic Design"))
+    (BuildFileAddedOrDeleted "x")
+    (CompileFileAddedOrDeleted "x")
+    (Netlist_TAB "5")
+    (LAYOUT_Netlist_File "LAYOUT.MNL")
+    (LAYOUT_PCB_Footprint "{PCB Footprint}")
+    (TRUE)
+    (LAYOUT_Units "0")
+    (DRC_Scope "0")
+    (DRC_Action "0")
+    (DRC_Create_Warnings "FALSE")
+    (DRC_Check_Ports "FALSE")
+    (DRC_Check_Off-Page_Connectors "FALSE")
+    (DRC_Identical_References "TRUE")
+    (DRC_Type_Mismatch "TRUE")
+    (DRC_Report_Ports_and_Off-page_Connectors "FALSE")
+    (DRC_SDT_Compatibility "FALSE")
+    (DRC_Report_Off-grid_Objects "FALSE")
+    (DRC_Check_Unconnected_Nets "TRUE")
+    (DRC_Report_Netnames "FALSE")
+    (DRC_View_Output "FALSE")
+    (DRC_Report_File "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LAYOUT.DRC")
+    (TRUE))
+  (Folder "Outputs"
+    (File ".\layout.mnl"
+      (Type "LAYOUT Netlist File"))
+    (File ".\layout.drc"
+      (Type "Report")))
+  (Folder "Referenced Projects")
+  (PartMRUSelector
+    (0
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\PSPICE\SOURCE.OLB")
+      (DeviceIndex "0"))
+    ($D_HI
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\PSPICE\SOURCE.OLB")
+      (DeviceIndex "0"))
+    ("HEADER 2"
+      (FullPartName "HEADER 2.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\CONNECTOR.OLB")
+      (DeviceIndex "0"))
+    (RESISTOR
+      (FullPartName "RESISTOR.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\OLDLIBS\DEVICE.OLB")
+      (DeviceIndex "0"))
+    (LED
+      (FullPartName "LED.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\OLDLIBS\DEVICE.OLB")
+      (DeviceIndex "0"))
+    (CAP
+      (FullPartName "CAP.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\OLDLIBS\PSPICE.OLB")
+      (DeviceIndex "0"))
+    ("RESISTOR VAR"
+      (FullPartName "RESISTOR VAR.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\OLDLIBS\DEVICE.OLB")
+      (DeviceIndex "0"))
+    (QZS32768
+      (FullPartName "QZS32768.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\PSPICE\XTAL.OLB")
+      (DeviceIndex "0"))
+    (74HC595
+      (FullPartName "74HC595.Normal")
+      (LibraryName "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LIBRARY1.OLB")
+      (DeviceIndex "0"))
+    (BUZZER
+      (FullPartName "BUZZER.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\IEC\DEVICE.OLB")
+      (DeviceIndex "0"))
+    (Buzzer
+      (FullPartName "Buzzer.Normal")
+      (LibraryName "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LIBRARY1.OLB")
+      (DeviceIndex "0"))
+    (KEYPAD
+      (FullPartName "KEYPAD.Normal")
+      (LibraryName "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LIBRARY1.OLB")
+      (DeviceIndex "0"))
+    (LCD
+      (FullPartName "LCD.Normal")
+      (LibraryName "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LIBRARY1.OLB")
+      (DeviceIndex "0"))
+    ("SW PUSHBUTTON"
+      (FullPartName "SW PUSHBUTTON.Normal")
+      (LibraryName "E:\DATA PC\ORCAD\CAPTURE\LIBRARY\OLDLIBS\DEVICE.OLB")
+      (DeviceIndex "0"))
+    (ATmega328p
+      (FullPartName "ATmega328p.Normal")
+      (LibraryName "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LIBRARY1.OLB")
+      (DeviceIndex "0")))
+  (GlobalState
+    (FileView
+      (Path "Design Resources")
+      (Path "Design Resources" "Library")
+      (Path "Outputs"))
+    (HierarchyView)
+    (Doc
+      (Type "COrCapturePMDoc")
+      (Frame
+        (Placement "44 0 1 -1 -1 -8 -31 0 200 0 425"))
+      (Tab 0))
+    (Doc
+      (Type "COrSchematicDoc")
+      (Frame
+        (Placement "44 2 3 0 644 -8 -31 191 1349 -4 460")
+        (Scroll "205 102")
+        (Zoom "174")
+        (Occurrence "/"))
+      (Path "G:\PROJECT\BK-AIRBUS\BKAIRBUS\ORCAD\LAYOUT.DSN")
+      (Schematic "SCHEMATIC1")
+      (Page "PAGE1"))
+    (Doc
+      (Type "TextFile")
+      (Frame
+        (Placement "44 0 1 -1 -1 -8 -31 26 1184 26 490"))
+      (Path "g:\project\bk-airbus\bkairbus\orcad\layout.drc")
+      (Scroll "0"))))
