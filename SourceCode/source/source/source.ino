@@ -5,7 +5,7 @@
 */
 
 /*****************************
-   version: beta 0.1
+   version: beta 0.5
    F-CPU: 16MHz
    microcontroller: ATmega328p
  *****************************/
@@ -46,6 +46,9 @@ unsigned char g_timeSec = 0;
 unsigned char g_timeSecOld = 0;
 unsigned char g_codeSet[4] = {0,0,0,0};
 unsigned char g_codeEnter[4] = {1,1,1,1};
+unsigned char g_engineerCode[7] = {0,0,0,0,0,0,0};
+unsigned char g_dateTime[10] = {2,5,45,1,0,45,2,0,0,2};
+unsigned char g_poiterEC = 0;
 unsigned char g_codeTemp[4] = {0,0,0,0};
 unsigned char g_poiterOutside = 0;
 unsigned char g_poiterInside = 0;
@@ -65,6 +68,7 @@ void ledLock(bool input);
 void ledUnlock(bool input);
 void buzzer(bool input);
 void soundPushButton();
+void USART_Transmit(unsigned char data);
 //End list function hardwave interface
 //List function sorfware
 void scanKey();
@@ -77,6 +81,7 @@ void peintLcdL();
 void operationSystem();
 void operationLcd();
 void overString(char input1[17], char input2[17]);
+void overStringSPI(unsigned char input1[], unsigned char input2[]);
 void stateTest();
 void testLight();
 unsigned char testDisplay();
@@ -85,8 +90,8 @@ unsigned char decemalConvertDonVi(unsigned char input);
 unsigned char testKeyPad();
 //End list function sorfware
 //Data of LCD display
-char stringLcdU[17];
-char stringLcdL[17];
+char stringLcdU[17];    // data upper line LCD
+char stringLcdL[17];    // data lower line LCD
 //end define
 //Interupt function lock or unlock door
 ISR(INT0_vect){   //Unlock function / allow to access cockpit
@@ -144,6 +149,7 @@ void initialLcd();
 void initialExternalInteruprt();
 void initialPinConfig();  //config pin
 void initializationSystem();
+void initSPI(unsigned int boudrate);
 //End define function initial hardware
 /**************************
 * 0: normal operation
@@ -263,13 +269,30 @@ void initialExternalInteruprt(){
   EIFR=(1<<INTF1) | (1<<INTF0);
   PCICR=(0<<PCIE2) | (0<<PCIE1) | (0<<PCIE0);
 }
+void initSPI(unsigned int boudrate){
+  UBRR0H = (unsigned char)((F_CPU/16/boudrate - 1)>>8);
+  UBRR0L = (unsigned char)(F_CPU/16/boudrate -1);
+  UCSR0B |= (1<<4); //enable RX bit 4
+  UCSR0B |= (1<<3); //enable TX bit 3
+  UCSR0A |= (1<<6);
+  UCSR0C = 0b00000110;  //Asynchronous USART //disable parity //1 bit stop //8bit data // polo raide
+
+}
+void USART_Transmit( unsigned char data )
+{
+  /* Wait for empty transmit buffer */
+  while ( !( UCSR0A & (1<<5)) );
+  /* Put data into buffer, sends the data */
+  UDR0 = data;
+  while ( !( UCSR0A & (1<<6)) );
+}
 unsigned char scanKeyInside(){
   g_vPort |= 0x0f;
   setVPort(g_vPort & 0xfe);
   _delay_us(1);
-  if((PINC&(1<<3))==0){
+  if((PINC&(1<<5))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<3))==0);
+    while((PINC&(1<<5))==0);
     soundPushButton();
     return 0x31;
   }else if((PINC&(1<<4))==0){
@@ -277,18 +300,18 @@ unsigned char scanKeyInside(){
     while((PINC&(1<<4))==0);
     soundPushButton();
     return 0x32;
-  }else if((PINC&(1<<5))==0){
+  }else if((PINC&(1<<3))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<5))==0);
+    while((PINC&(1<<3))==0);
     soundPushButton();
     return 0x33;
   }
   g_vPort |= 0x0f;
   setVPort(g_vPort & 0xfd);
   _delay_us(1);
-  if((PINC&(1<<3))==0){
+  if((PINC&(1<<5))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<3))==0);
+    while((PINC&(1<<5))==0);
     soundPushButton();
     return 0x34;
   }else if((PINC&(1<<4))==0){
@@ -296,18 +319,18 @@ unsigned char scanKeyInside(){
     while((PINC&(1<<4))==0);
     soundPushButton();
     return 0x35;
-  }else if((PINC&(1<<5))==0){
+  }else if((PINC&(1<<3))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<5))==0);
+    while((PINC&(1<<3))==0);
     soundPushButton();
     return 0x36;
   }
   g_vPort |= 0x0f;
   setVPort(g_vPort & 0xfb);
   _delay_us(1);
-  if((PINC&(1<<3))==0){
+  if((PINC&(1<<5))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<3))==0);
+    while((PINC&(1<<5))==0);
     soundPushButton();
     return 0x37;
   }else if((PINC&(1<<4))==0){
@@ -315,18 +338,18 @@ unsigned char scanKeyInside(){
     while((PINC&(1<<4))==0);
     soundPushButton();
     return 0x38;
-  }else if((PINC&(1<<5))==0){
+  }else if((PINC&(1<<3))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<5))==0);
+    while((PINC&(1<<3))==0);
     soundPushButton();
     return 0x39;
   }
   g_vPort |= 0x0f;
   setVPort(g_vPort & 0xf7);
   _delay_us(1);
-  if((PINC&(1<<3))==0){
+  if((PINC&(1<<5))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<3))==0);
+    while((PINC&(1<<5))==0);
     soundPushButton();
     return 0x2a;
   }else if((PINC&(1<<4))==0){
@@ -334,9 +357,9 @@ unsigned char scanKeyInside(){
     while((PINC&(1<<4))==0);
     soundPushButton();
     return 0x30;
-  }else if((PINC&(1<<5))==0){
+  }else if((PINC&(1<<3))==0){
     _delay_ms(TIME_DEBOUNCE);
-    while((PINC&(1<<5))==0);
+    while((PINC&(1<<3))==0);
     soundPushButton();
     return 0x23;
   }
@@ -711,6 +734,8 @@ void operationLcd(){
           overString(stringLcdL, " 4.Test display ");
         }else if(stateMenuLcd == 3){
           overString(stringLcdL, " 5. Information ");
+        }else if(stateMenuLcd == 4){
+          overString(stringLcdL, "6. Create Report");
         }
         printLcdU();
         printLcdL();
@@ -726,12 +751,12 @@ void operationLcd(){
         }else if(key == 0x2a){
           stateMenuLcd --;
           if(stateMenuLcd < 0){
-            stateMenuLcd = 3;
+            stateMenuLcd = 4;
           }
           g_changeStateLcd = 1;
         }else if(key == 0x23){
           stateMenuLcd ++;
-          if(stateMenuLcd > 3){
+          if(stateMenuLcd > 4){
             stateMenuLcd = 0;
           }
           g_changeStateLcd = 1;
@@ -747,6 +772,13 @@ void operationLcd(){
           g_stateCodeLcd = 5;
           stateMenuLcd = 0;
           g_changeStateLcd = 1;
+          key = 0xff;
+        }else if(key == 0x36){
+          g_stateCodeLcd = 6;
+          stateMenuLcd = 0;
+          g_changeStateLcd = 1;
+          overString(stringLcdL, "YourCode:       ");
+          g_poiterEC = 0;
           key = 0xff;
         }
       }else if(g_stateCodeLcd == 3){
@@ -860,6 +892,247 @@ void operationLcd(){
             g_stateCodeLcd = 2;
           }
         }
+      }else if(g_stateCodeLcd == 6){
+        if(stateMenuLcd == 0){
+          overString(stringLcdU, "1. EngineerCode ");
+          if(key >= 0x30 && key <= 0x39){
+            if(g_poiterEC != 7){
+              stringLcdL[9+g_poiterEC] = key;
+            }
+            g_engineerCode[g_poiterEC] = key;
+            g_poiterEC ++;
+            if(g_poiterEC == 7){
+              g_poiterEC = 0;
+            }
+            g_changeStateLcd = 1;
+            key = 0xff;
+          }else if(key == 0x23){
+            stateMenuLcd = 1;
+            overString(stringLcdL, "Date:  -  -     ");
+            g_changeStateLcd = 1;
+            g_poiterEC = 0;
+          }
+          printLcdU();
+          printLcdL();
+          if(key == 0x2a){
+            g_stateCodeLcd = 2;
+            stateMenuLcd = 0;
+            g_changeStateLcd = 1;
+            key = 0xff;
+          }
+        }else if(stateMenuLcd == 1){
+          overString(stringLcdU, "2. Date time    ");
+          if(key >= 0x30 && key <= 0x39){
+            if(g_poiterEC != 11){
+              stringLcdL[5+g_poiterEC] = key;
+            }
+            g_dateTime[g_poiterEC] = key;
+            g_poiterEC ++;
+            if(g_poiterEC == 2){
+              g_poiterEC ++;
+            }else if(g_poiterEC == 5){
+              g_poiterEC ++;
+            }
+            g_changeStateLcd = 1;
+            key = 0xff;
+          }else if(key == 0x23){
+            stateMenuLcd = 2;
+            g_changeStateLcd = 1;
+          }
+          printLcdU();
+          printLcdL();
+          if(key == 0x2a){
+            g_stateCodeLcd = 2;
+            stateMenuLcd = 0;
+            g_changeStateLcd = 1;
+            key = 0xff;
+          }
+        }else if(stateMenuLcd == 2){
+          overString(stringLcdU, " Setup Complete ");
+          overString(stringLcdL, "Please press #  ");
+          printLcdU();
+          printLcdL();
+          if(key == 0x2a){
+            g_stateCodeLcd = 2;
+            stateMenuLcd = 0;
+            g_changeStateLcd = 1;
+            key = 0xff;
+          }else if(key == 0x23){
+            stateMenuLcd = 3;
+            g_changeStateLcd = 1;
+          }
+        }else if(stateMenuLcd == 3){
+          unsigned char i = 0;
+          unsigned char string[40] = "=============================/.";
+          overString(stringLcdU, "Creating Report ");
+          overString(stringLcdL, " Please wait !! ");
+          printLcdU();
+          printLcdL();
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          USART_Transmit('\n');
+          _delay_ms(500);
+          overString(stringLcdU, "Creating Report ");
+          overString(stringLcdL, "Reseach Engineer");
+          printLcdU();
+          printLcdL();
+          if(g_engineerCode[0] == 0x32 && g_engineerCode[5] == 0x37 && g_engineerCode[6] == 0x37){
+            overStringSPI(string, "Engineer: Nguyen Thanh Toan/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+            USART_Transmit(': ');
+            for(i=0; i<7;i++){
+              USART_Transmit(g_engineerCode[i]);
+            }
+            USART_Transmit('\n');
+          }else{
+            overStringSPI(string, "Engineer:Unknow/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+            USART_Transmit('\n');
+          }
+          _delay_ms(700);
+          overString(stringLcdU, "Creating Report ");
+          overString(stringLcdL, "Print date time ");
+          printLcdU();
+          printLcdL();
+          overStringSPI(string, "Date: /.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          for(i=0; i<10; i++){
+            USART_Transmit(g_dateTime[i]);
+          }
+          USART_Transmit('\n');
+          _delay_ms(500);
+          overString(stringLcdU, "Creating Report ");
+          overString(stringLcdL, " Report system  ");
+          printLcdU();
+          printLcdL();
+          overStringSPI(string, "Health of system/.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          USART_Transmit('\n');
+          overStringSPI(string, "1- System keypad inside: /.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          if(g_errorCode[0] == 0){
+            overStringSPI(string, "good/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }else{
+            overStringSPI(string, "ERROR, Maybe some key not working/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }
+          USART_Transmit('\n');
+          overStringSPI(string, "2- System keypad outside: /.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          if(g_errorCode[1] == 0){
+            overStringSPI(string, "good/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }else{
+            overStringSPI(string, "ERROR, Maybe some key not working/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }
+          USART_Transmit('\n');
+          overStringSPI(string, "3- Switch control: /.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          if(g_errorCode[2] == 0){
+            overStringSPI(string, "good/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }else{
+            overStringSPI(string, "ERROR, Maybe some switch is not working/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }
+          USART_Transmit('\n');
+          overStringSPI(string, "4- System LCD display: /.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          if(g_errorCode[3] == 0){
+            overStringSPI(string, "good/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }else{
+            overStringSPI(string, "ERROR, Maybe LCD is not working well/.");
+            i = 0;
+            while(string[i] != '/'){
+              USART_Transmit(string[i]);
+              i++;
+            }
+          }
+          USART_Transmit('\n');
+          overStringSPI(string, "==================================/.");
+          i = 0;
+          while(string[i] != '/'){
+            USART_Transmit(string[i]);
+            i++;
+          }
+          USART_Transmit('\n');
+          _delay_ms(1200);
+          overString(stringLcdU, "Report is completed");
+          overString(stringLcdL, " Return in few sec ");
+          printLcdU();
+          printLcdL();
+          soundPushButton();
+          _delay_ms(2000);
+          g_stateCodeLcd = 2;
+          g_changeStateLcd = 1;
+          stateMenuLcd = 0;
+          key = 0xff;
+        }
       }
     }
   }
@@ -894,16 +1167,16 @@ void ledDenied(bool input){
 }
 void ledLock(bool input){
   if(input){
-    PORTB = PORTB|(1<<4);
+    PORTB = PORTB|(1<<5);
   }else{
-    PORTB = PORTB&(~(1<<4));
+    PORTB = PORTB&(~(1<<5));
   }
 }
 void ledUnlock(bool input){
   if(input){
-    PORTB = PORTB|(1<<5);
+    PORTB = PORTB|(1<<4);
   }else{
-    PORTB = PORTB&(~(1<<5));
+    PORTB = PORTB&(~(1<<4));
   }
 }
 void buzzer(bool input){
@@ -932,28 +1205,42 @@ void initialLcd(){
   _delay_ms(1000);
 }
 void initializationSystem(){
-  SREG |= 0x80;  //Global interrupt enable
   initialPinConfig();
   initialLcd();
   overString(stringLcdL, "PinConfigSuccess");
   printLcdL();
-  _delay_ms(200);
+  _delay_ms(1000);
   initialExternalInteruprt();
   overString(stringLcdL, "InterruptSuccess");
   printLcdL();
-  _delay_ms(300);
+  _delay_ms(700);
   initialTimer0();
   overString(stringLcdL, "InitTimerSuccess");
   printLcdL();
-  _delay_ms(100);
-  overString(stringLcdU, "Vision: Beta 0.5");
+  _delay_ms(1000);
+  initSPI(9600);
+  overString(stringLcdL, "Init SPI Success");
+  printLcdL();
+  _delay_ms(700);
+  overString(stringLcdU, "  Vision: v2.1  ");
   overString(stringLcdL, " Please press # ");
   printLcdU();
   printLcdL();
+  SREG |= 0x80;  //Global interrupt enable
   buzzer(1);
   _delay_ms(50);
   buzzer(0);
-  while(scanKeyInside() != 0x23);
+  bool runLocal = 1;
+  unsigned char keyTempLocal = 0;
+  do{
+    keyTempLocal = scanKeyInside();
+    if(keyTempLocal == 0x23){
+      runLocal = 0;
+    } else if(keyTempLocal != 0xff){
+      g_remainTimeLcd = 3;
+      writeCommandLCD(0x0c);
+    }
+  }while(runLocal);
 }
 void printLcdU(){
   unsigned char i = 0;
@@ -973,6 +1260,13 @@ void overString(char input1[17], char input2[17]){
   unsigned char i = 0;
   for(i=0; i<17; i++){
     input1[i] = input2[i];
+  }
+}
+void overStringSPI( unsigned char input1[], unsigned char input2[]){
+  unsigned char i = 0;
+  while(input2[i] != '.'){
+    input1[i] = input2[i];
+    i++;
   }
 }
 void stateTest(){
